@@ -7,5 +7,5 @@ edition = "2021"
 calamine = "0.26"
 
 [[bin]]
-name = "xlsx2tsv"
+name = "xlsx"
 path = "src/main.rs"

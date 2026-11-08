@@ -6,7 +6,7 @@ fn fixture() -> &'static str {
 
 #[test]
 fn converts_first_sheet_to_tsv() {
-    let out = Command::new(env!("CARGO_BIN_EXE_xlsx2tsv"))
+    let out = Command::new(env!("CARGO_BIN_EXE_xlsx"))
         .arg(fixture())
         .output()
         .unwrap();
@@ -19,7 +19,7 @@ fn converts_first_sheet_to_tsv() {
 
 #[test]
 fn fields_selects_and_reorders_columns() {
-    let out = Command::new(env!("CARGO_BIN_EXE_xlsx2tsv"))
+    let out = Command::new(env!("CARGO_BIN_EXE_xlsx"))
         .args([fixture(), "-f", "C,A"])
         .output()
         .unwrap();
@@ -32,7 +32,7 @@ fn fields_selects_and_reorders_columns() {
 
 #[test]
 fn fields_rejects_invalid_column() {
-    let out = Command::new(env!("CARGO_BIN_EXE_xlsx2tsv"))
+    let out = Command::new(env!("CARGO_BIN_EXE_xlsx"))
         .args([fixture(), "-f", "A,1"])
         .output()
         .unwrap();
@@ -41,7 +41,7 @@ fn fields_rejects_invalid_column() {
 
 #[test]
 fn missing_file_fails() {
-    let out = Command::new(env!("CARGO_BIN_EXE_xlsx2tsv"))
+    let out = Command::new(env!("CARGO_BIN_EXE_xlsx"))
         .arg("does-not-exist.xlsx")
         .output()
         .unwrap();
@@ -50,7 +50,7 @@ fn missing_file_fails() {
 
 #[test]
 fn no_arguments_shows_usage() {
-    let out = Command::new(env!("CARGO_BIN_EXE_xlsx2tsv")).output().unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_xlsx")).output().unwrap();
     assert_eq!(out.status.code(), Some(2));
     assert!(String::from_utf8(out.stderr).unwrap().contains("Usage:"));
 }

@@ -4,7 +4,7 @@ use std::process::ExitCode;
 
 use data::{parse_columns, read_first_sheet, to_tsv, Error};
 
-const USAGE: &str = "Usage: xlsx2tsv <file.xlsx> [-f A,C,E]
+const USAGE: &str = "Usage: xlsx <file.xlsx> [-f A,C,E]
 
 Convert the first worksheet of an Excel document to TSV on stdout.
 
@@ -53,7 +53,7 @@ fn main() -> ExitCode {
     match run(&file, fields.as_deref()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("xlsx2tsv: {e}");
+            eprintln!("xlsx: {e}");
             ExitCode::FAILURE
         }
     }
