@@ -71,31 +71,43 @@ pub fn read_first_sheet(path: &Path) -> Result<Vec<Vec<String>>, Error> {
         .collect())
 }
 
+/// Backslash-escape a field so it contains no raw backslash, tab, CR or LF.
+pub fn escape_cell(cell: &str) -> String {
+    let mut out = String::with_capacity(cell.len());
+    for c in cell.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '\t' => out.push_str("\\t"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
 /// Render a grid as TSV, keeping only `columns` (zero-based) when given.
-pub fn to_tsv(rows: &[Vec<String>], columns: Option<&[usize]>) -> String {
+/// When `escape` is set, fields are backslash-escaped via [`escape_cell`].
+pub fn to_tsv(rows: &[Vec<String>], columns: Option<&[usize]>, escape: bool) -> String {
     let mut out = String::new();
     for row in rows {
+        let cells: Vec<&str> = match columns {
+            None => row.iter().map(String::as_str).collect(),
+            Some(cols) => cols
+                .iter()
+                .map(|&i| row.get(i).map(String::as_str).unwrap_or(""))
+                .collect(),
+        };
         let mut first = true;
-        match columns {
-            None => {
-                for cell in row {
-                    if !first {
-                        out.push('\t');
-                    }
-                    first = false;
-                    out.push_str(cell);
-                }
+        for cell in cells {
+            if !first {
+                out.push('\t');
             }
-            Some(cols) => {
-                for &i in cols {
-                    if !first {
-                        out.push('\t');
-                    }
-                    first = false;
-                    if let Some(cell) = row.get(i) {
-                        out.push_str(cell);
-                    }
-                }
+            first = false;
+            if escape {
+                out.push_str(&escape_cell(cell));
+            } else {
+                out.push_str(cell);
             }
         }
         out.push('\n');
@@ -139,12 +151,18 @@ mod tests {
     }
 
     #[test]
+    fn escape_cell_escapes_specials() {
+        assert_eq!(escape_cell("a\tb\\c\nd\r"), "a\\tb\\\\c\\nd\\r");
+        assert_eq!(escape_cell("plain"), "plain");
+    }
+
+    #[test]
     fn to_tsv_without_selection() {
         let rows = vec![
             vec!["a".to_string(), "b".to_string()],
             vec!["1".to_string(), "2".to_string()],
         ];
-        assert_eq!(to_tsv(&rows, None), "a\tb\n1\t2\n");
+        assert_eq!(to_tsv(&rows, None, false), "a\tb\n1\t2\n");
     }
 
     #[test]
@@ -153,12 +171,19 @@ mod tests {
             vec!["a".to_string(), "b".to_string(), "c".to_string()],
             vec!["1".to_string(), "2".to_string(), "3".to_string()],
         ];
-        assert_eq!(to_tsv(&rows, Some(&[2, 0])), "c\ta\n3\t1\n");
+        assert_eq!(to_tsv(&rows, Some(&[2, 0]), false), "c\ta\n3\t1\n");
     }
 
     #[test]
     fn to_tsv_missing_column_is_empty() {
         let rows = vec![vec!["a".to_string()]];
-        assert_eq!(to_tsv(&rows, Some(&[0, 5])), "a\t\n");
+        assert_eq!(to_tsv(&rows, Some(&[0, 5]), false), "a\t\n");
+    }
+
+    #[test]
+    fn to_tsv_escape_keeps_one_record_per_line() {
+        let rows = vec![vec!["x\ny".to_string(), "a\tb".to_string()]];
+        assert_eq!(to_tsv(&rows, None, true), "x\\ny\ta\\tb\n");
+        assert_eq!(to_tsv(&rows, None, false), "x\ny\ta\tb\n");
     }
 }

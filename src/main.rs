@@ -4,19 +4,22 @@ use std::process::ExitCode;
 
 use data::{parse_columns, read_first_sheet, to_tsv, Error};
 
-const USAGE: &str = "Usage: xlsx <file.xlsx> [-f A,C,E]
+const USAGE: &str = "Usage: xlsx <file.xlsx> [-f A,C,E] [-e]
 
 Convert the first worksheet of an Excel document to TSV on stdout.
 
 Options:
   -f, --fields <LIST>  comma-separated Excel column letters to keep, in the
                        given order (e.g. -f A,C,E)
+  -e, --escape         backslash-escape backslash, tab, CR and LF in fields
+                       (as \\\\, \\t, \\r, \\n) so each record stays on one line
   -h, --help           show this help
 ";
 
 fn main() -> ExitCode {
     let mut file: Option<String> = None;
     let mut fields: Option<String> = None;
+    let mut escape = false;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -24,6 +27,7 @@ fn main() -> ExitCode {
                 print!("{USAGE}");
                 return ExitCode::SUCCESS;
             }
+            "-e" | "--escape" => escape = true,
             "-f" | "--fields" => match args.next() {
                 Some(value) => fields = Some(value),
                 None => {
@@ -50,7 +54,7 @@ fn main() -> ExitCode {
         return ExitCode::from(2);
     };
 
-    match run(&file, fields.as_deref()) {
+    match run(&file, fields.as_deref(), escape) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("xlsx: {e}");
@@ -59,13 +63,13 @@ fn main() -> ExitCode {
     }
 }
 
-fn run(file: &str, fields: Option<&str>) -> Result<(), Error> {
+fn run(file: &str, fields: Option<&str>, escape: bool) -> Result<(), Error> {
     let columns = match fields {
         Some(spec) => Some(parse_columns(spec)?),
         None => None,
     };
     let rows = read_first_sheet(Path::new(file))?;
     let mut out = std::io::stdout().lock();
-    out.write_all(to_tsv(&rows, columns.as_deref()).as_bytes())?;
+    out.write_all(to_tsv(&rows, columns.as_deref(), escape).as_bytes())?;
     Ok(())
 }

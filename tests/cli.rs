@@ -4,6 +4,10 @@ fn fixture() -> &'static str {
     concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/sample.xlsx")
 }
 
+fn multiline_fixture() -> &'static str {
+    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/multiline.xlsx")
+}
+
 #[test]
 fn converts_first_sheet_to_tsv() {
     let out = Command::new(env!("CARGO_BIN_EXE_xlsx"))
@@ -46,6 +50,32 @@ fn missing_file_fails() {
         .output()
         .unwrap();
     assert!(!out.status.success());
+}
+
+#[test]
+fn escape_flag_keeps_one_record_per_line() {
+    let out = Command::new(env!("CARGO_BIN_EXE_xlsx"))
+        .args([multiline_fixture(), "-e"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert_eq!(
+        String::from_utf8(out.stdout).unwrap(),
+        "Text\nline1\\nline2\na\\tb\\\\c\n"
+    );
+}
+
+#[test]
+fn without_escape_specials_pass_through_raw() {
+    let out = Command::new(env!("CARGO_BIN_EXE_xlsx"))
+        .arg(multiline_fixture())
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert_eq!(
+        String::from_utf8(out.stdout).unwrap(),
+        "Text\nline1\nline2\na\tb\\c\n"
+    );
 }
 
 #[test]
