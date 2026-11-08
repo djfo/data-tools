@@ -79,6 +79,46 @@ fn without_escape_specials_pass_through_raw() {
 }
 
 #[test]
+fn column_names_with_limit() {
+    let out = Command::new(env!("CARGO_BIN_EXE_xls_column_names"))
+        .arg("5")
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert_eq!(
+        String::from_utf8(out.stdout).unwrap(),
+        "0\tA\n1\tB\n2\tC\n3\tD\n4\tE\n"
+    );
+}
+
+#[test]
+fn column_names_rejects_invalid_count() {
+    let out = Command::new(env!("CARGO_BIN_EXE_xls_column_names"))
+        .arg("abc")
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(2));
+}
+
+#[test]
+fn column_names_streams_without_limit() {
+    use std::io::{BufRead, BufReader};
+    let mut child = Command::new(env!("CARGO_BIN_EXE_xls_column_names"))
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let stdout = child.stdout.take().unwrap();
+    let mut lines = BufReader::new(stdout).lines();
+    assert_eq!(lines.next().unwrap().unwrap(), "0\tA");
+    for _ in 1..26 {
+        lines.next().unwrap().unwrap();
+    }
+    assert_eq!(lines.next().unwrap().unwrap(), "26\tAA");
+    child.kill().unwrap();
+    child.wait().unwrap();
+}
+
+#[test]
 fn no_arguments_shows_usage() {
     let out = Command::new(env!("CARGO_BIN_EXE_xlsx")).output().unwrap();
     assert_eq!(out.status.code(), Some(2));

@@ -48,6 +48,17 @@ pub fn column_index(reference: &str) -> Option<usize> {
     Some(index - 1)
 }
 
+/// Convert a zero-based column index to its Excel column name.
+pub fn column_name(index: usize) -> String {
+    let mut name = String::new();
+    let mut n = index + 1;
+    while n > 0 {
+        name.insert(0, (b'A' + ((n - 1) % 26) as u8) as char);
+        n = (n - 1) / 26;
+    }
+    name
+}
+
 /// Parse a comma-separated list of Excel column references into zero-based indices.
 pub fn parse_columns(spec: &str) -> Result<Vec<usize>, Error> {
     spec.split(',')
@@ -141,6 +152,23 @@ mod tests {
         assert_eq!(column_index("1"), None);
         assert_eq!(column_index("A1"), None);
         assert_eq!(column_index(" A"), None);
+    }
+
+    #[test]
+    fn column_name_single_and_multi_letters() {
+        assert_eq!(column_name(0), "A");
+        assert_eq!(column_name(25), "Z");
+        assert_eq!(column_name(26), "AA");
+        assert_eq!(column_name(27), "AB");
+        assert_eq!(column_name(51), "AZ");
+        assert_eq!(column_name(52), "BA");
+    }
+
+    #[test]
+    fn column_name_is_inverse_of_column_index() {
+        for s in ["A", "B", "Z", "AA", "AZ", "BA", "ZZ", "AAA"] {
+            assert_eq!(column_name(column_index(s).unwrap()), s);
+        }
     }
 
     #[test]
