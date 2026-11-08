@@ -1,0 +1,11 @@
+[package]
+name = "data"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+calamine = "0.26"
+
+[[bin]]
+name = "xlsx"
+path = "src/main.rs"
