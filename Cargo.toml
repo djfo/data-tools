@@ -1,0 +1,11 @@
+[package]
+name = "data"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+calamine = "0.26"
+
+[[bin]]
+name = "xlsx2tsv"
+path = "src/main.rs"
