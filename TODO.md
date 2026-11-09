@@ -6,6 +6,7 @@
   columns), a dependency-free alternative to `datamash transpose`. Decide
   padding for ragged input; proposal: pad short rows with empty fields, since
   `xlsx` emits a rectangular grid anyway.
+- `tsv-query`: query TSV tables using simple SQL (DQL) statements
 
 ## Deferred Work
 
