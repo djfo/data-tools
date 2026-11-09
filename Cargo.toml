@@ -9,3 +9,7 @@ calamine = "0.26"
 [[bin]]
 name = "xlsx"
 path = "src/main.rs"
+
+[[bin]]
+name = "tsv-graph"
+path = "src/bin/tsv_graph.rs"

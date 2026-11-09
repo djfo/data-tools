@@ -1,2 +1,3 @@
 scope	description
+tsv	TSV file processing (reading, transformation)
 xlsx	Excel document processing (reading, conversion)

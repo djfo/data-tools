@@ -124,3 +124,45 @@ fn no_arguments_shows_usage() {
     assert_eq!(out.status.code(), Some(2));
     assert!(String::from_utf8(out.stderr).unwrap().contains("Usage:"));
 }
+
+fn graph_fixture() -> &'static str {
+    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/graph.tsv")
+}
+
+#[test]
+fn tsv_graph_emits_dot_edges_to_target() {
+    let out = Command::new(env!("CARGO_BIN_EXE_tsv-graph"))
+        .args([graph_fixture(), "ID", "TargetID"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert_eq!(
+        String::from_utf8(out.stdout).unwrap(),
+        "digraph {\n  \"2\" -> \"1\";\n  \"3\" -> \"1\";\n  \"4\" -> \"2\";\n}\n"
+    );
+}
+
+#[test]
+fn tsv_graph_missing_column_fails() {
+    let out = Command::new(env!("CARGO_BIN_EXE_tsv-graph"))
+        .args([graph_fixture(), "ID", "NoSuchColumn"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+}
+
+#[test]
+fn tsv_graph_missing_file_fails() {
+    let out = Command::new(env!("CARGO_BIN_EXE_tsv-graph"))
+        .args(["does-not-exist.tsv", "ID", "TargetID"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+}
+
+#[test]
+fn tsv_graph_no_arguments_shows_usage() {
+    let out = Command::new(env!("CARGO_BIN_EXE_tsv-graph")).output().unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    assert!(String::from_utf8(out.stderr).unwrap().contains("Usage:"));
+}
