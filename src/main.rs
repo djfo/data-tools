@@ -9,8 +9,10 @@ const USAGE: &str = "Usage: xlsx <file.xlsx> [-f A,C,E] [-e]
 Convert the first worksheet of an Excel document to TSV on stdout.
 
 Options:
-  -f, --fields <LIST>  comma-separated Excel column letters to keep, in the
-                       given order (e.g. -f A,C,E)
+  -f, --fields <LIST>  comma-separated Excel columns to keep, in the given
+                       order; entries may be single columns or inclusive
+                       ranges using Excel's colon operator
+                       (e.g. -f A,C,E or -f A:D,P,Q,AA:AZ)
   -e, --escape         backslash-escape backslash, tab, CR and LF in fields
                        (as \\\\, \\t, \\r, \\n) so each record stays on one line
   -h, --help           show this help
