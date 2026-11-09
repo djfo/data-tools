@@ -10,8 +10,8 @@
 ## Tools
 
 - `tsv-graph`: read a TSV file with ID and target columns and emit a
-  directed graph in DOT format (one edge per row, pointing to the target).
-  Implemented as the `tsv-graph` binary.
+  directed graph in DOT format (one edge per row, pointing to the target),
+  with optional node labels. Implemented as the `tsv-graph` binary.
 - `tsv-transpose`: transpose a TSV read from stdin to stdout (rows become
   columns), a dependency-free alternative to `datamash transpose`. Decide
   padding for ragged input; proposal: pad short rows with empty fields, since

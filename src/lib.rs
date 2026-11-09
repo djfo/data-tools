@@ -147,10 +147,28 @@ pub fn dot_quote(s: &str) -> String {
 }
 
 /// Build a DOT digraph from TSV rows, drawing an edge `id -> target` for each
-/// data row. `rows[0]` is the header; `id_col` and `target_col` are zero-based
-/// column indices into each row. Rows with an empty target are skipped.
-pub fn tsv_to_dot(rows: &[Vec<String>], id_col: usize, target_col: usize) -> String {
+/// data row. `rows[0]` is the header; the column arguments are zero-based
+/// indices into each row. Rows with an empty target are skipped.
+/// When `node_label_col` is set, a `"id" [label="..."];` statement is emitted
+/// for each node with a non-empty label, before the edges.
+pub fn tsv_to_dot(
+    rows: &[Vec<String>],
+    id_col: usize,
+    target_col: usize,
+    node_label_col: Option<usize>,
+) -> String {
     let mut out = String::from("digraph {\n");
+    if let Some(label_col) = node_label_col {
+        let mut seen = std::collections::HashSet::new();
+        for row in &rows[1..] {
+            let id = row.get(id_col).map(String::as_str).unwrap_or("");
+            let label = row.get(label_col).map(String::as_str).unwrap_or("");
+            if id.is_empty() || label.is_empty() || !seen.insert(id.to_string()) {
+                continue;
+            }
+            out.push_str(&format!("  {} [label={}];\n", dot_quote(id), dot_quote(label)));
+        }
+    }
     for row in &rows[1..] {
         let id = row.get(id_col).map(String::as_str).unwrap_or("");
         let target = row.get(target_col).map(String::as_str).unwrap_or("");
@@ -277,7 +295,7 @@ mod tests {
             vec!["3".to_string(), "1".to_string()],
         ];
         assert_eq!(
-            tsv_to_dot(&rows, 0, 1),
+            tsv_to_dot(&rows, 0, 1, None),
             "digraph {\n  \"2\" -> \"1\";\n  \"3\" -> \"1\";\n}\n"
         );
     }
@@ -291,7 +309,7 @@ mod tests {
             vec!["3".to_string(), "2".to_string()],
         ];
         assert_eq!(
-            tsv_to_dot(&rows, 0, 1),
+            tsv_to_dot(&rows, 0, 1, None),
             "digraph {\n  \"3\" -> \"2\";\n}\n"
         );
     }
@@ -303,8 +321,21 @@ mod tests {
             vec!["a\"b".to_string(), "c\\d".to_string()],
         ];
         assert_eq!(
-            tsv_to_dot(&rows, 0, 1),
+            tsv_to_dot(&rows, 0, 1, None),
             "digraph {\n  \"a\\\"b\" -> \"c\\\\d\";\n}\n"
+        );
+    }
+
+    #[test]
+    fn tsv_to_dot_emits_node_labels_before_edges() {
+        let rows = vec![
+            vec!["ID".to_string(), "TargetID".to_string(), "Name".to_string()],
+            vec!["1".to_string(), "".to_string(), "Root".to_string()],
+            vec!["2".to_string(), "1".to_string(), "Child".to_string()],
+        ];
+        assert_eq!(
+            tsv_to_dot(&rows, 0, 1, Some(2)),
+            "digraph {\n  \"1\" [label=\"Root\"];\n  \"2\" [label=\"Child\"];\n  \"2\" -> \"1\";\n}\n"
         );
     }
 }

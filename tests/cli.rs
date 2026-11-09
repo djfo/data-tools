@@ -166,3 +166,25 @@ fn tsv_graph_no_arguments_shows_usage() {
     assert_eq!(out.status.code(), Some(2));
     assert!(String::from_utf8(out.stderr).unwrap().contains("Usage:"));
 }
+
+#[test]
+fn tsv_graph_node_label_emits_node_statements() {
+    let out = Command::new(env!("CARGO_BIN_EXE_tsv-graph"))
+        .args([graph_fixture(), "ID", "TargetID", "-n", "Name"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert_eq!(
+        String::from_utf8(out.stdout).unwrap(),
+        "digraph {\n  \"1\" [label=\"Root\"];\n  \"2\" [label=\"Child A\"];\n  \"3\" [label=\"Child B\"];\n  \"4\" [label=\"Grandchild\"];\n  \"2\" -> \"1\";\n  \"3\" -> \"1\";\n  \"4\" -> \"2\";\n}\n"
+    );
+}
+
+#[test]
+fn tsv_graph_unknown_label_column_fails() {
+    let out = Command::new(env!("CARGO_BIN_EXE_tsv-graph"))
+        .args([graph_fixture(), "ID", "TargetID", "-n", "NoSuchColumn"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+}
