@@ -35,6 +35,41 @@ fn fields_selects_and_reorders_columns() {
 }
 
 #[test]
+fn fields_expands_column_range() {
+    let out = Command::new(env!("CARGO_BIN_EXE_xlsx"))
+        .args([fixture(), "-f", "A:B"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert_eq!(
+        String::from_utf8(out.stdout).unwrap(),
+        "Name\tAge\nAnna\t34\nBob\t28\n"
+    );
+}
+
+#[test]
+fn fields_accepts_mixed_ranges_and_names() {
+    let out = Command::new(env!("CARGO_BIN_EXE_xlsx"))
+        .args([fixture(), "-f", "C,A:B"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert_eq!(
+        String::from_utf8(out.stdout).unwrap(),
+        "City\tName\tAge\nWien\tAnna\t34\nBerlin\tBob\t28\n"
+    );
+}
+
+#[test]
+fn fields_rejects_reversed_range() {
+    let out = Command::new(env!("CARGO_BIN_EXE_xlsx"))
+        .args([fixture(), "-f", "C:A"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+}
+
+#[test]
 fn fields_rejects_invalid_column() {
     let out = Command::new(env!("CARGO_BIN_EXE_xlsx"))
         .args([fixture(), "-f", "A,1"])

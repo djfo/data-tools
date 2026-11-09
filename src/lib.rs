@@ -59,13 +59,34 @@ pub fn column_name(index: usize) -> String {
     name
 }
 
-/// Parse a comma-separated list of Excel column references into zero-based indices.
+/// Parse one comma-separated item of a column spec: a single column ("A", "b")
+/// or an inclusive range ("A:D", "AA:AZ"), expanded to zero-based indices.
+/// The colon matches Excel's own range operator (e.g. `A:D`).
+fn parse_column_item(item: &str) -> Result<Vec<usize>, Error> {
+    let invalid = || Error::InvalidColumn(item.to_string());
+    let (start_ref, end_ref) = if let Some((a, b)) = item.split_once(':') {
+        (a, b)
+    } else {
+        return Ok(vec![
+            column_index(item).ok_or_else(invalid)?,
+        ]);
+    };
+    let start = column_index(start_ref).ok_or_else(invalid)?;
+    let end = column_index(end_ref).ok_or_else(invalid)?;
+    if start > end {
+        return Err(invalid());
+    }
+    Ok((start..=end).collect())
+}
+
+/// Parse a comma-separated list of Excel column references and ranges
+/// (e.g. "A:D,P,Q,AA:AZ") into zero-based indices, in the given order.
 pub fn parse_columns(spec: &str) -> Result<Vec<usize>, Error> {
-    spec.split(',')
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(|s| column_index(s).ok_or_else(|| Error::InvalidColumn(s.to_string())))
-        .collect()
+    let mut columns = Vec::new();
+    for item in spec.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+        columns.extend(parse_column_item(item)?);
+    }
+    Ok(columns)
 }
 
 /// Read the first worksheet of the Excel document at `path` as a grid of strings.
@@ -176,6 +197,36 @@ mod tests {
         assert_eq!(parse_columns("A, C ,e").unwrap(), vec![0, 2, 4]);
         assert!(parse_columns("A,,B").is_ok());
         assert!(parse_columns("A,x1").is_err());
+    }
+
+    #[test]
+    fn parse_columns_expands_colon_range() {
+        assert_eq!(parse_columns("A:D").unwrap(), vec![0, 1, 2, 3]);
+        assert_eq!(parse_columns("B:C").unwrap(), vec![1, 2]);
+        assert_eq!(parse_columns("Y:AA").unwrap(), vec![24, 25, 26]);
+        assert_eq!(parse_columns("AA:AZ").unwrap(), (26..=51).collect::<Vec<_>>());
+        assert_eq!(parse_columns("A:A").unwrap(), vec![0]);
+    }
+
+    #[test]
+    fn parse_columns_mixes_ranges_and_names() {
+        assert_eq!(
+            parse_columns("A:D,P,Q,AA:AZ").unwrap(),
+            [vec![0, 1, 2, 3], vec![15, 16], (26..=51).collect::<Vec<_>>()].concat()
+        );
+        assert_eq!(parse_columns("C,A:B").unwrap(), vec![2, 0, 1]);
+    }
+
+    #[test]
+    fn parse_columns_rejects_invalid_ranges() {
+        assert!(parse_columns("D:A").is_err());
+        assert!(parse_columns("A:").is_err());
+        assert!(parse_columns(":D").is_err());
+        assert!(parse_columns("A:1").is_err());
+        assert!(parse_columns("A:B:C").is_err());
+        assert!(parse_columns("A:B,x1").is_err());
+        assert!(parse_columns("A..D").is_err());
+        assert!(parse_columns("AA-AZ").is_err());
     }
 
     #[test]
