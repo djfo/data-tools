@@ -7,6 +7,8 @@
   padding for ragged input; proposal: pad short rows with empty fields, since
   `xlsx` emits a rectangular grid anyway.
 - `tsv-query`: query TSV tables using simple SQL (DQL) statements
+- `tsv-to-md`: convert a TSV file to a Markdown table, with per-column
+  alignment via `-a` (e.g. `-a llrc` = left, left, right, center)
 
 ## Deferred Work
 
