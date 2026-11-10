@@ -159,3 +159,104 @@ fn no_arguments_shows_usage() {
     assert_eq!(out.status.code(), Some(2));
     assert!(String::from_utf8(out.stderr).unwrap().contains("Usage:"));
 }
+
+fn tsv_fixture() -> &'static str {
+    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/table.tsv")
+}
+
+fn pipes_fixture() -> &'static str {
+    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/pipes.tsv")
+}
+
+#[test]
+fn tsv_to_md_converts_with_alignment_spec() {
+    let out = Command::new(env!("CARGO_BIN_EXE_tsv-to-md"))
+        .args([tsv_fixture(), "-a", "llrc"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert_eq!(
+        String::from_utf8(out.stdout).unwrap(),
+        "| Name | Age | Score |  City  |\n\
+         | :--- | :-- | ----: | :----: |\n\
+         | Anna | 34  |  91.5 |  Wien  |\n\
+         | Bob  | 28  |    77 | Berlin |\n"
+    );
+}
+
+#[test]
+fn tsv_to_md_without_align_uses_default() {
+    let out = Command::new(env!("CARGO_BIN_EXE_tsv-to-md"))
+        .arg(tsv_fixture())
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert_eq!(
+        String::from_utf8(out.stdout).unwrap(),
+        "| Name | Age | Score | City   |\n\
+         | ---- | --- | ----- | ------ |\n\
+         | Anna | 34  | 91.5  | Wien   |\n\
+         | Bob  | 28  | 77    | Berlin |\n"
+    );
+}
+
+#[test]
+fn tsv_to_md_accepts_joined_align_flag() {
+    let out = Command::new(env!("CARGO_BIN_EXE_tsv-to-md"))
+        .args(["-allrc", tsv_fixture()])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert!(String::from_utf8(out.stdout)
+        .unwrap()
+        .starts_with("| Name | Age | Score |"));
+}
+
+#[test]
+fn tsv_to_md_escapes_pipes_in_cells() {
+    let out = Command::new(env!("CARGO_BIN_EXE_tsv-to-md"))
+        .arg(pipes_fixture())
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    assert_eq!(
+        String::from_utf8(out.stdout).unwrap(),
+        "| a\\|b | c   |\n| ---- | --- |\n| d\\|e | f   |\n"
+    );
+}
+
+#[test]
+fn tsv_to_md_rejects_invalid_alignment_char() {
+    let out = Command::new(env!("CARGO_BIN_EXE_tsv-to-md"))
+        .args([tsv_fixture(), "-a", "lrx"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+}
+
+#[test]
+fn tsv_to_md_rejects_more_alignments_than_columns() {
+    let out = Command::new(env!("CARGO_BIN_EXE_tsv-to-md"))
+        .args([tsv_fixture(), "-a", "lllrc"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+}
+
+#[test]
+fn tsv_to_md_missing_file_fails() {
+    let out = Command::new(env!("CARGO_BIN_EXE_tsv-to-md"))
+        .arg("does-not-exist.tsv")
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+}
+
+#[test]
+fn tsv_to_md_no_arguments_shows_usage() {
+    let out = Command::new(env!("CARGO_BIN_EXE_tsv-to-md"))
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    assert!(String::from_utf8(out.stderr).unwrap().contains("Usage:"));
+}

@@ -11,6 +11,7 @@ pub enum Error {
     Io(std::io::Error),
     Spreadsheet(String),
     InvalidColumn(String),
+    InvalidAlignment(String),
 }
 
 impl fmt::Display for Error {
@@ -19,6 +20,7 @@ impl fmt::Display for Error {
             Error::Io(e) => write!(f, "I/O error: {e}"),
             Error::Spreadsheet(m) => write!(f, "spreadsheet error: {m}"),
             Error::InvalidColumn(c) => write!(f, "invalid column reference: {c:?}"),
+            Error::InvalidAlignment(m) => write!(f, "invalid alignment: {m}"),
         }
     }
 }
@@ -147,6 +149,118 @@ pub fn to_tsv(rows: &[Vec<String>], columns: Option<&[usize]>, escape: bool) -> 
     out
 }
 
+/// Column alignment in a Markdown table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Alignment {
+    Left,
+    Right,
+    Center,
+    Default,
+}
+
+/// Parse an alignment spec with one character per column: `l` left, `r` right,
+/// `c` center, `-` default (e.g. "llrc" = left, left, right, center).
+pub fn parse_alignment(spec: &str) -> Result<Vec<Alignment>, Error> {
+    spec.chars()
+        .map(|c| match c {
+            'l' | 'L' => Ok(Alignment::Left),
+            'r' | 'R' => Ok(Alignment::Right),
+            'c' | 'C' => Ok(Alignment::Center),
+            '-' => Ok(Alignment::Default),
+            _ => Err(Error::InvalidAlignment(format!(
+                "{c:?} (expected l, r, c or -)"
+            ))),
+        })
+        .collect()
+}
+
+/// Escape a cell for a Markdown table: `|` becomes `\|` and line breaks
+/// become `<br>` so the table structure survives.
+pub fn md_escape(cell: &str) -> String {
+    let mut out = String::with_capacity(cell.len());
+    for c in cell.chars() {
+        match c {
+            '|' => out.push_str("\\|"),
+            '\n' => out.push_str("<br>"),
+            '\r' => {}
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// The Markdown separator cell (`:---`, `---:`, `:--:` or `---`) for a column
+/// of the given display width and alignment; at least 3 characters wide.
+fn separator_cell(width: usize, align: Alignment) -> String {
+    let w = width.max(3);
+    match align {
+        Alignment::Left => format!(":{}", "-".repeat(w - 1)),
+        Alignment::Right => format!("{}:", "-".repeat(w - 1)),
+        Alignment::Center => format!(":{}:", "-".repeat(w - 2)),
+        Alignment::Default => "-".repeat(w),
+    }
+}
+
+/// Pad a cell to the column's display width, honoring the alignment.
+fn pad_cell(cell: &str, width: usize, align: Alignment) -> String {
+    let total = width.saturating_sub(cell.chars().count());
+    match align {
+        Alignment::Right => format!("{}{cell}", " ".repeat(total)),
+        Alignment::Center => {
+            let left = total / 2;
+            format!("{}{}{}", " ".repeat(left), cell, " ".repeat(total - left))
+        }
+        Alignment::Left | Alignment::Default => format!("{cell}{}", " ".repeat(total)),
+    }
+}
+
+/// Render a grid as a Markdown table; the first row is the header.
+/// `alignments` applies per column, missing entries are [`Alignment::Default`].
+/// Short rows are padded with empty cells; cells are escaped via [`md_escape`].
+pub fn to_markdown(rows: &[Vec<String>], alignments: &[Alignment]) -> String {
+    if rows.is_empty() {
+        return String::new();
+    }
+    let ncols = rows.iter().map(Vec::len).max().unwrap_or(0);
+    let align = |i: usize| alignments.get(i).copied().unwrap_or(Alignment::Default);
+    let widths: Vec<usize> = (0..ncols)
+        .map(|i| {
+            rows.iter()
+                .map(|row| {
+                    row.get(i)
+                        .map(|c| md_escape(c).chars().count())
+                        .unwrap_or(0)
+                })
+                .max()
+                .unwrap_or(0)
+                .max(3)
+        })
+        .collect();
+    let render_row = |row: &[String], out: &mut String| {
+        let cells: Vec<String> = (0..ncols)
+            .map(|i| {
+                let raw = row.get(i).map(String::as_str).unwrap_or("");
+                pad_cell(&md_escape(raw), widths[i], align(i))
+            })
+            .collect();
+        out.push_str("| ");
+        out.push_str(&cells.join(" | "));
+        out.push_str(" |\n");
+    };
+    let mut out = String::new();
+    render_row(&rows[0], &mut out);
+    let seps: Vec<String> = (0..ncols)
+        .map(|i| separator_cell(widths[i], align(i)))
+        .collect();
+    out.push_str("| ");
+    out.push_str(&seps.join(" | "));
+    out.push_str(" |\n");
+    for row in &rows[1..] {
+        render_row(row, &mut out);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -264,5 +378,102 @@ mod tests {
         let rows = vec![vec!["x\ny".to_string(), "a\tb".to_string()]];
         assert_eq!(to_tsv(&rows, None, true), "x\\ny\ta\\tb\n");
         assert_eq!(to_tsv(&rows, None, false), "x\ny\ta\tb\n");
+    }
+
+    #[test]
+    fn parse_alignment_maps_chars() {
+        assert_eq!(
+            parse_alignment("llrc").unwrap(),
+            vec![
+                Alignment::Left,
+                Alignment::Left,
+                Alignment::Right,
+                Alignment::Center
+            ]
+        );
+        assert_eq!(
+            parse_alignment("L-R").unwrap(),
+            vec![Alignment::Left, Alignment::Default, Alignment::Right]
+        );
+        assert_eq!(parse_alignment("").unwrap(), Vec::<Alignment>::new());
+    }
+
+    #[test]
+    fn parse_alignment_rejects_invalid_chars() {
+        assert!(parse_alignment("lx").is_err());
+        assert!(parse_alignment("l r").is_err());
+    }
+
+    #[test]
+    fn md_escape_escapes_pipes_and_newlines() {
+        assert_eq!(md_escape("a|b\nc\rd"), "a\\|b<br>cd");
+        assert_eq!(md_escape("plain"), "plain");
+    }
+
+    #[test]
+    fn to_markdown_renders_aligned_table() {
+        let rows = vec![
+            vec![
+                "Name".to_string(),
+                "Age".to_string(),
+                "Score".to_string(),
+                "City".to_string(),
+            ],
+            vec![
+                "Anna".to_string(),
+                "34".to_string(),
+                "91.5".to_string(),
+                "Wien".to_string(),
+            ],
+            vec![
+                "Bob".to_string(),
+                "28".to_string(),
+                "77".to_string(),
+                "Berlin".to_string(),
+            ],
+        ];
+        let align = parse_alignment("llrc").unwrap();
+        assert_eq!(
+            to_markdown(&rows, &align),
+            "| Name | Age | Score |  City  |\n\
+             | :--- | :-- | ----: | :----: |\n\
+             | Anna | 34  |  91.5 |  Wien  |\n\
+             | Bob  | 28  |    77 | Berlin |\n"
+        );
+    }
+
+    #[test]
+    fn to_markdown_default_alignment_uses_plain_dashes() {
+        let rows = vec![
+            vec!["a".to_string(), "bb".to_string()],
+            vec!["1".to_string(), "2".to_string()],
+        ];
+        assert_eq!(
+            to_markdown(&rows, &[]),
+            "| a   | bb  |\n| --- | --- |\n| 1   | 2   |\n"
+        );
+    }
+
+    #[test]
+    fn to_markdown_escapes_pipes() {
+        let rows = vec![vec!["x|y".to_string(), "z".to_string()]];
+        assert_eq!(to_markdown(&rows, &[]), "| x\\|y | z   |\n| ---- | --- |\n");
+    }
+
+    #[test]
+    fn to_markdown_pads_ragged_rows() {
+        let rows = vec![
+            vec!["a".to_string(), "b".to_string()],
+            vec!["1".to_string()],
+        ];
+        assert_eq!(
+            to_markdown(&rows, &[]),
+            "| a   | b   |\n| --- | --- |\n| 1   |     |\n"
+        );
+    }
+
+    #[test]
+    fn to_markdown_empty_input_is_empty() {
+        assert_eq!(to_markdown(&[], &[]), "");
     }
 }
